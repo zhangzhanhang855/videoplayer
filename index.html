@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>8-Bit 智能视频像素版 Pro - LOCKED</title>
+    
+    <link rel="dns-prefetch" href="https://api.github.com">
+    <link rel="preconnect" href="https://api.github.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* 像素风格全局变量与设置 */
+        :root { 
+            --accent: #00d2ff; 
+            --accent-bg: rgba(0, 210, 255, 0.15); 
+            --ai-color: #ff0055; 
+            --bg: #050507; 
+            --panel: #101015; 
+            --text-main: #fff;
+            --text-sub: #aaa;
+            --pixel-border: 4px; 
+        }
+        
+        body, html { 
+            margin: 0; padding: 0; 
+            height: 100%; height: 100dvh; 
+            font-family: 'VT323', 'Courier New', monospace; 
+            font-size: 20px; 
+            background: var(--bg); color: var(--text-main); 
+            overflow: hidden; 
+            image-rendering: pixelated; 
+        }
+        
+        #bg-pattern { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            filter: brightness(0.2); z-index: -1;
+            background-size: 16px 16px;
+            background-image: 
+                linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%), 
+                linear-gradient(-45deg, rgba(255,255,255,0.03) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%);
+        }
+
+        /* 密码门拦截全屏 UI */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: var(--bg); z-index: 9999; padding: 20px; box-sizing: border-box;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .login-box {
+            background: var(--panel); border: var(--pixel-border) solid var(--ai-color); 
+            padding: 40px 30px; text-align: center; width: 100%; max-width: 350px;
+            box-shadow: 15px 15px 0 rgba(0,0,0,0.8);
+        }
+        .login-box h1 { margin: 0 0 10px 0; font-size: 2rem; color: var(--ai-color); }
+        .login-box p { margin: 0 0 30px 0; color: var(--text-sub); }
+        
+        .pwd-input {
+            background: rgba(255,255,255,0.05); border: var(--pixel-border) solid rgba(255,255,255,0.2);
+            padding: 15px; color: #fff; margin-bottom: 20px; outline: none; font-size: 1.5rem; 
+            width: 100%; box-sizing: border-box; font-family: 'VT323', monospace; text-align: center; letter-spacing: 5px;
+        }
+        .pwd-input:focus { border-color: var(--accent); }
+        
+        .login-btn {
+            background: var(--accent); border: none; color: #000; cursor: pointer; font-size: 1.5rem; 
+            width: 100%; padding: 15px; font-family: 'VT323', monospace; font-weight: bold;
+        }
+        .login-btn:active { background: #00aadd; }
+        
+        #pwd-error { color: var(--ai-color); margin-top: 15px; font-size: 1rem; min-height: 1.2rem; }
+
+        .container { 
+            display: none; 
+            flex-direction: column; align-items: center; 
+            height: 100%; height: 100dvh; 
+            padding: 20px; 
+            padding-bottom: calc(10px + env(safe-area-inset-bottom)); 
+            box-sizing: border-box; 
+        }
+
+        .layout-wrapper {
+            display: flex; flex-direction: column; 
+            width: 100%; max-width: 420px; flex: 1; overflow: hidden; align-items: center;
+        }
+        
+        .glass-card {
+            background: var(--panel); border: var(--pixel-border) solid var(--accent); 
+            padding: 20px; width: 100%; text-align: center; box-shadow: 10px 10px 0 rgba(0,0,0,0.5); 
+            flex-shrink: 0; margin-bottom: 20px; box-sizing: border-box; border-radius: 0; 
+        }
+
+        h2 { margin: 5px 0; font-size: 1.5rem; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #speed-tag { font-size: 0.8rem; background: var(--accent); color: #000; padding: 4px 10px; font-weight: bold; margin-bottom: 10px; display: inline-block; }
+        #status { font-size: 0.9rem; color: var(--text-sub); margin-bottom: 15px; min-height: 1.1rem; }
+
+        /* 🌟 新增：视频播放器屏幕样式 */
+        #player {
+            width: 100%;
+            background: #000;
+            border: var(--pixel-border) solid rgba(255,255,255,0.1);
+            margin-bottom: 15px;
+            aspect-ratio: 16/9; /* 保持16:9的影视比例 */
+            object-fit: contain;
+            cursor: pointer;
+        }
+
+        .progress-box { width: 100%; height: 20px; display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
+        .bar-bg { width: 100%; height: 10px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; }
+        #buf-bar { position: absolute; height: 100%; background: rgba(255,255,255,0.25); width: 0%; transition: width 0.2s linear; }
+        #prog-bar { position: absolute; height: 100%; background: var(--accent); width: 0%; transition: width 0.1s linear; }
+
+        .btns { display: flex; justify-content: space-evenly; align-items: center; width: 100%; margin-top: 10px; }
+        .btns button { background: none; border: none; color: #fff; cursor: pointer; font-size: 1.6rem; width: 60px; display: flex; justify-content: center; align-items: center; padding: 0; font-family: 'VT323', monospace; }
+        #mode-btn { font-size: 1rem; color: var(--text-sub); border: 2px solid rgba(255,255,255,0.1); width: 50px; height: 35px; }
+        .btns button:active { color: var(--accent); border-color: var(--accent); }
+        .btns button:hover { color: var(--accent); }
+        .btns .main-play { font-size: 3.5rem; width: 70px; }
+        
+        .ai-panel {
+            background: rgba(255,0,85,0.05); border: 2px dashed var(--ai-color); padding: 10px; margin-top: 15px; text-align: left;
+            font-size: 0.8rem; color: #ddd; min-height: 40px; font-family: system-ui, -apple-system, sans-serif; 
+            line-height: 1.4; display: flex; flex-direction: column;
+        }
+        .ai-title { color: var(--ai-color); font-weight: bold; margin-bottom: 5px; font-family: 'VT323', monospace; font-size: 1rem; }
+        
+        .list-wrap { width: 100%; flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        
+        .search { background: rgba(255,255,255,0.05); border: var(--pixel-border) solid rgba(255,255,255,0.1); padding: 12px; color: #fff; margin-bottom: 15px; outline: none; font-size: 1.1rem; flex-shrink: 0; font-family: 'VT323', monospace; }
+        .search:focus { border-color: rgba(255,255,255,0.3); }
+        
+        #list { list-style: none; padding: 0 0 20px 0; overflow-y: auto; flex: 1; margin: 0; -webkit-overflow-scrolling: touch; border: var(--pixel-border) solid rgba(255,255,255,0.1); }
+        #list li { padding: 14px 18px; border-bottom: 2px solid rgba(255,255,255,0.03); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 1rem; }
+        #list li.active { color: var(--accent); background: var(--accent-bg); border-left: 6px solid var(--accent); }
+
+        .footer-info { width: 100%; max-width: 420px; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; flex-shrink: 0; font-size: 0.8rem; color: rgba(255,255,255,0.3); line-height: 1.5; }
+
+        @media (min-width: 900px) and (orientation: landscape) {
+            body, html { font-size: 22px; } 
+            .container { padding: 40px; }
+            .layout-wrapper { flex-direction: row; max-width: 1050px; gap: 50px; align-items: stretch; }
+            .glass-card { width: 430px; margin-bottom: 0; display: flex; flex-direction: column; justify-content: center; box-shadow: 15px 15px 0 rgba(0,0,0,0.5); }
+            .list-wrap { flex: 1; }
+            .footer-info { max-width: 1050px; justify-content: flex-end; }
+            .footer-info .left { margin-right: 40px; text-align: right; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="bg-pattern"></div>
+
+<div id="login-screen">
+    <div class="login-box">
+        <h1>SYSTEM LOCKED</h1>
+        <p>AUTHENTICATION REQUIRED</p>
+        <input type="password" id="pwd-input" class="pwd-input" placeholder="********" onkeydown="if(event.key==='Enter') checkPwd()">
+        <button onclick="checkPwd()" class="login-btn">ACCESS</button>
+        <div id="pwd-error"></div>
+    </div>
+</div>
+
+<div class="container" id="main-app">
+    <div class="layout-wrapper">
+        <div class="glass-card">
+            <div id="speed-tag">SMART ROUTING</div>
+            <h2 id="title">WAITING...</h2>
+            <div id="status">INITIALIZING...</div>
+            
+            <video id="player" playsinline onclick="playToggle()"></video>
+
+            <div class="progress-box" id="seek-bar">
+                <div class="bar-bg">
+                    <div id="buf-bar"></div>
+                    <div id="prog-bar"></div>
+                </div>
+            </div>
+
+            <div class="btns">
+                <button onclick="setMode()" id="mode-btn" title="播放模式">LIST</button>
+                <button onclick="step(-1)" title="上一个">⏮</button>
+                <button onclick="playToggle()" class="main-play" id="play-btn">▶️</button>
+                <button onclick="step(1)" title="下一个">⏭</button>
+                <button onclick="dl()" title="下载视频">📥</button>
+            </div>
+
+            <div class="ai-panel">
+                <div class="ai-title">🤖 GEMINI INSIGHT</div>
+                <div id="ai-text">等待分析标题...</div>
+            </div>
+        </div>
+
+        <div class="list-wrap">
+            <input type="text" class="search" id="q" placeholder="SEARCH VIDEO..." oninput="doSearch()">
+            <ul id="list"></ul>
+        </div>
+    </div>
+
+    <div class="footer-info">
+        <div class="left">💡 如果是LFS DIRECT<br>则为最高画质源文件</div>
+        <div class="right">本网站由zzh个人制作<br>感谢你的支持！❤️</div>
+    </div>
+</div>
+
+<script>
+    // =========================================================================
+    // 🔑 配置区域
+    // =========================================================================
+    
+    const G = { 
+        user: 'zhangzhanhang855', 
+        repo: 'videoplayer', // 🌟 仓库名已改为 videoplayer
+        ver: 'main', 
+        github_token: '' 
+    };
+    
+    const GEMINI_API_KEY = ''; 
+    
+    // =========================================================================
+
+    let all = [], filtered = [], cur = 0, isP = false, loop = 'list';
+    let aiTimer = null; 
+    
+    // 🌟 将控制对象改为 video
+    const video = document.getElementById('player');
+    const status = document.getElementById('status');
+    const prog = document.getElementById('prog-bar');
+    const buf = document.getElementById('buf-bar');
+    const playBtn = document.getElementById('play-btn');
+    const speedTag = document.getElementById('speed-tag');
+    const aiText = document.getElementById('ai-text'); 
+
+    function checkPwd() {
+        const input = document.getElementById('pwd-input').value;
+        const errBox = document.getElementById('pwd-error');
+        
+        if (input === '24377891') {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            document.title = "8-Bit 智能视频像素版 Pro"; 
+            start(); 
+        } else {
+            errBox.innerText = '❌ ACCESS DENIED';
+            document.getElementById('pwd-input').value = ''; 
+            document.getElementById('pwd-input').focus(); 
+        }
+    }
+
+    const getOptimalUrl = (fileObj) => {
+        if (fileObj.size < 1024) {
+            return { url: `https://media.githubusercontent.com/media/${G.user}/${G.repo}/${G.ver}/${encodeURIComponent(fileObj.name)}`, type: 'LFS DIRECT' };
+        } else {
+            return { url: `https://cdn.jsdelivr.net/gh/${G.user}/${G.repo}@${G.ver}/${encodeURIComponent(fileObj.name)}`, type: 'CDN EDGE' };
+        }
+    };
+
+    async function analyzeSongTitle(title) {
+        if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+            aiText.innerText = "未配置 Gemini API Key。";
+            return;
+        }
+        
+        aiText.innerText = "📡 正在连接 Gemini 解析标题...";
+        
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        // 🌟 针对视频微调了 Prompt
+        const prompt = `作为资深影视爱好者，请简短分析视频《${title}》这个名字的可能来源、含义或背后的意境。要求：1. 只分析字面意思和文化背景，不要编造剧情。2. 语言简练，控制在 50 个字以内。`;
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}: API 请求失败`);
+            const data = await response.json();
+            
+            if (data.candidates && data.candidates[0].content.parts[0].text) {
+                aiText.innerText = data.candidates[0].content.parts[0].text.replace(/\*/g, ''); 
+            } else {
+                aiText.innerText = "解析失败，API 未返回有效内容。";
+            }
+        } catch (error) {
+            aiText.innerText = `❌ 解析错误: ${error.message}`;
+            console.error(error);
+        }
+    }
+
+    async function start() {
+        try {
+            const fetchOptions = G.github_token ? { headers: { 'Authorization': `Bearer ${G.github_token}` } } : {};
+            const r = await fetch(`https://api.github.com/repos/${G.user}/${G.repo}/contents/`, fetchOptions);
+            
+            if (r.status === 403) throw new Error("HTTP 403: GitHub API 限制，请检查 Token");
+            if (r.status === 401) throw new Error("HTTP 401: GitHub Token 验证失败");
+            if (r.status === 404) throw new Error("HTTP 404: 找不到视频仓库，请检查是否为 Public");
+            if (!r.ok) throw new Error(`HTTP ${r.status}: 无法读取仓库`);
+
+            const d = await r.json();
+            // 🌟 过滤器修改为视频常用格式：mp4, webm, ogg, mov
+            all = d.filter(f => /\.(mp4|webm|ogg|mov|mkv)$/i.test(f.name)).map(f => {
+                const route = getOptimalUrl(f);
+                return { t: f.name.replace(/\.[^/.]+$/, ""), f: f.name, u: route.url, routeType: route.type };
+            });
+            
+            filtered = [...all];
+            drawList();
+            if(all.length > 0) loadTrack(0, false);
+            status.innerText = "READY. SMART ROUTING ENABLED.";
+        } catch (e) { 
+            status.innerText = "详细报错 👉 " + e.message; 
+            document.getElementById('title').innerText = "加载失败";
+        }
+    }
+
+    function drawList() {
+        let html = '';
+        for(let i=0; i<filtered.length; i++) {
+            let s = filtered[i];
+            html += `<li class="${cur === i ? 'active' : ''}" onclick="selectTrack(${i})">
+                <span>${s.t}</span>
+                <span style="opacity:0.4;font-size:0.8rem;">${s.f.split('.').pop().toUpperCase()}</span>
+            </li>`;
+        }
+        document.getElementById('list').innerHTML = html;
+    }
+
+    function loadTrack(idx, auto = true) {
+        cur = idx;
+        const s = filtered[cur];
+        
+        video.pause();
+        video.src = s.u; 
+        video.load(); 
+        
+        document.getElementById('title').innerText = s.t;
+        speedTag.innerText = s.routeType;
+        speedTag.style.background = s.routeType === 'CDN EDGE' ? '#00d2ff' : '#ff0055';
+        status.innerText = `CONNECTING VIA ${s.routeType}...`;
+        
+        const h = Math.floor(Math.random() * 360);
+        document.getElementById('bg-pattern').style.background = `hsl(${h}, 50%, 15%)`;
+        
+        drawList();
+        
+        clearTimeout(aiTimer);
+        aiText.innerText = "⏳ 观影中，2秒后唤醒 AI 解析...";
+        aiTimer = setTimeout(() => {
+            analyzeSongTitle(s.t);
+        }, 2000);
+
+        if (auto || isP) {
+            const p = video.play();
+            if (p) p.then(() => { isP = true; ui(); }).catch(() => { isP = false; ui(); });
+        }
+    }
+
+    // 🌟 所有监听器都从 audio 换成了 video
+    video.addEventListener('progress', () => {
+        if (video.buffered.length > 0) { buf.style.width = ((video.buffered.end(video.buffered.length - 1) / video.duration) * 100 || 0) + "%"; }
+    });
+
+    video.addEventListener('playing', () => { status.innerText = "STREAMING ACTIVE"; isP = true; ui(); });
+    video.addEventListener('waiting', () => { status.innerText = "BUFFERING..."; });
+    video.addEventListener('timeupdate', () => { prog.style.width = ((video.currentTime / video.duration) * 100 || 0) + '%'; });
+
+    function playToggle() { if (video.paused) { video.play(); isP = true; } else { video.pause(); isP = false; } ui(); }
+    function ui() { playBtn.innerText = isP ? '⏸' : '▶️'; }
+    function step(d) { let n = (cur + d + filtered.length) % filtered.length; if (loop === 'random') n = Math.floor(Math.random() * filtered.length); loadTrack(n); }
+    function selectTrack(i) { loadTrack(i); isP = true; ui(); }
+    
+    document.getElementById('seek-bar').onclick = (e) => { 
+        video.currentTime = ((e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.offsetWidth) * video.duration; 
+    };
+    
+    video.onended = () => { if (loop === 'single') video.play(); else step(1); };
+
+    function setMode() {
+        const mArr = ['list', 'random', 'single'];
+        const mText = { list: 'LIST', random: 'RND', single: 'ONE' };
+        loop = mArr[(mArr.indexOf(loop) + 1) % 3];
+        document.getElementById('mode-btn').innerText = mText[loop];
+    }
+
+    function doSearch() { filtered = all.filter(s => s.f.toLowerCase().includes(document.getElementById('q').value.toLowerCase())); drawList(); }
+    function dl() { const a = document.createElement('a'); a.href = filtered[cur].u; a.download = filtered[cur].f; a.target = '_blank'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+</script>
+</body>
+</html>
